@@ -9,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,7 +33,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
+import androidx.navigation.NavHost
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.rememberNavController
 import com.example.homework.ui.theme.HomeworkTheme
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,9 +54,36 @@ class MainActivity : ComponentActivity() {
         setContent {
             HomeworkTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    Conversation(SampleData.conversationSample)
+                    AppNavigation()
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun AppNavigation() {
+    val navController = rememberNavController()
+    NavHost(
+        navController = navController,
+        startDestination = "firstPage") {
+        composable("firstPage") { Conversation(SampleData.conversationSample, navController) }
+        composable("secondPage") { SecondPage(navController) }
+    }
+}
+
+@Composable
+fun SecondPage(navController: NavHostController) {
+
+    Column(modifier = Modifier
+        .fillMaxHeight()
+        .padding(16.dp)
+    ) {
+        Button(modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+            onClick = { navController.popBackStack() }) {
+            Text("Go to First Page")
         }
     }
 }
@@ -109,19 +151,26 @@ fun PreviewMessageCard() {
     }
 }
 @Composable
-fun Conversation(messages: List<Message>) {
-    LazyColumn {
-        items(messages) { message ->
-            MessageCard(message)
-        }
-    }
-}
+fun Conversation(messages: List<Message>, navController: NavHostController) {
 
-@Preview
-@Composable
-fun PreviewConversation() {
-    HomeworkTheme {
-        Conversation(SampleData.conversationSample)
+    Column(modifier = Modifier
+        .fillMaxHeight()
+        .padding(16.dp)
+    ) {
+        Button(
+            onClick = { navController.navigate("secondPage") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp)
+        ) {
+            Text("Go to Second Page")
+        }
+
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            items(messages) { message ->
+                MessageCard(message)
+            }
+        }
     }
 }
 
