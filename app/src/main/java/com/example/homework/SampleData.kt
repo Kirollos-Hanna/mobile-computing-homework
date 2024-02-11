@@ -6,11 +6,15 @@ package com.example.homework
 object SampleData {
     // Sample conversation data
     val conversationSample = listOf(
-        Message(
+        Photo(
+            2,
+            "",
             "Lexi",
             "Test...Test...Test..."
         ),
-        Message(
+        Photo(
+            3,
+            "",
             "Lexi",
             """List of Android versions:
             |Android KitKat (API 19)
@@ -23,53 +27,69 @@ object SampleData {
             |Android 11 (API 30)
             |Android 12 (API 31)""".trim()
         ),
-        Message(
+        Photo(
+            4,
+            "",
             "Lexi",
             """I think Kotlin is my favorite programming language.
             |It's so much fun!""".trim()
         ),
-        Message(
+        Photo(
+            5,
+            "",
             "Lexi",
             "Searching for alternatives to XML layouts..."
         ),
-        Message(
+        Photo(
+            6,
+            "",
             "Lexi",
             """Hey, take a look at Jetpack Compose, it's great!
             |It's the Android's modern toolkit for building native UI.
             |It simplifies and accelerates UI development on Android.
             |Less code, powerful tools, and intuitive Kotlin APIs :)""".trim()
         ),
-        Message(
+        Photo(
+            7,
+            "",
             "Lexi",
             "It's available from API 21+ :)"
         ),
-        Message(
+        Photo(
+            8,
+            "",
             "Lexi",
             "Writing Kotlin for UI seems so natural, Compose where have you been all my life?"
         ),
-        Message(
-            "Lexi",
-            "Android Studio next version's name is Arctic Fox"
-        ),
-        Message(
-            "Lexi",
-            "Android Studio Arctic Fox tooling for Compose is top notch ^_^"
-        ),
-        Message(
-            "Lexi",
-            "I didn't know you can now run the emulator directly from Android Studio"
-        ),
-        Message(
-            "Lexi",
-            "Compose Previews are great to check quickly how a composable layout looks like"
-        ),
-        Message(
-            "Lexi",
-            "Previews are also interactive after enabling the experimental setting"
-        ),
-        Message(
-            "Lexi",
-            "Have you tried writing build.gradle with KTS?"
-        ),
+//        Photo(
+//            "",
+//            "Lexi",
+//            "Android Studio next version's name is Arctic Fox"
+//        ),
+//        Photo(
+//            "",
+//            "Lexi",
+//            "Android Studio Arctic Fox tooling for Compose is top notch ^_^"
+//        ),
+//        Photo(
+//            "",
+//            "Lexi",
+//            "I didn't know you can now run the emulator directly from Android Studio"
+//        ),
+//        Photo(
+//            "",
+//            "Lexi",
+//            "Compose Previews are great to check quickly how a composable layout looks like"
+//        ),
+//        Photo(
+//            "",
+//            "Lexi",
+//            "Previews are also interactive after enabling the experimental setting"
+//        ),
+//        Photo(
+//            "",
+//            "Lexi",
+//            "Have you tried writing build.gradle with KTS?"
+//        ),
     )
 }

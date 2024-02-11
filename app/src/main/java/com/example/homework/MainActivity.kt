@@ -2,6 +2,7 @@ package com.example.homework
 
 import android.content.res.Configuration
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -40,21 +41,62 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.example.homework.ui.theme.HomeworkTheme
 import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.appcompat.app.AppCompatActivity
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.viewModels
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.CreationExtras
+import androidx.room.Room
+import coil.compose.AsyncImage
 
 
 class MainActivity : ComponentActivity() {
+
+    private val db by lazy {
+        Room.databaseBuilder(
+            applicationContext,
+            AppDatabase::class.java,
+            "photos1.db"
+        ).build()
+    }
+
+    private val viewModel by viewModels<PhotoViewModel>(
+        factoryProducer = {
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(
+                    modelClass: Class<T>,
+                    extras: CreationExtras
+                ): T {
+                    return PhotoViewModel(db.photoDao) as T
+                }
+            }
+        }
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             HomeworkTheme {
+                val state by viewModel.state.collectAsState()
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    AppNavigation()
+                    AppNavigation(state = state, onEvent = viewModel::onEvent)
                 }
             }
         }
@@ -62,18 +104,39 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(state: PhotoState, onEvent: (PhotoEvent) -> Unit) {
     val navController = rememberNavController()
+    val allSamples: MutableList<Photo> = mutableListOf<Photo>()
+    allSamples += SampleData.conversationSample
+    val allStoredPhotos = state.photos
+    println("TEST")
+    println(allStoredPhotos)
+
+//    data.add(PhotoState.pho)
     NavHost(
         navController = navController,
         startDestination = "firstPage") {
-        composable("firstPage") { Conversation(SampleData.conversationSample, navController) }
-        composable("secondPage") { SecondPage(navController) }
+        composable("firstPage") { Conversation(state, navController) }
+        composable("secondPage") { SecondPage(navController, state, onEvent) }
     }
 }
 
 @Composable
-fun SecondPage(navController: NavHostController) {
+fun SecondPage(navController: NavHostController, state: PhotoState, onEvent: (PhotoEvent) -> Unit) {
+    var selectedImageUri by remember {
+        mutableStateOf<Uri?>(null)
+    }
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+        onResult = { uri ->
+            selectedImageUri = uri
+            if (uri != null) {
+                onEvent(PhotoEvent.setPhoto(uri.toString()))
+            }
+         }
+    )
+    val author = remember { mutableStateOf("") }
+    val body = remember { mutableStateOf("") }
 
     Column(modifier = Modifier
         .fillMaxHeight()
@@ -83,18 +146,59 @@ fun SecondPage(navController: NavHostController) {
             .fillMaxWidth()
             .padding(bottom = 8.dp),
             onClick = { navController.popBackStack() }) {
-            Text("Go to First Page")
+            Text("Go Back")
         }
+        Button(modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+            onClick = { photoPickerLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            ) }) {
+            Text("Pick Photo")
+        }
+        AsyncImage(
+            model = selectedImageUri,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(if(selectedImageUri != null) 40.dp else 0.dp)
+                .clip(CircleShape)
+                .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+        )
+        OutlinedTextField(
+            value = state.author,
+            onValueChange = { onEvent(PhotoEvent.setAuthor(it)) },
+            label = { Text("Author") },
+            singleLine = true,
+        )
+        OutlinedTextField(
+            value = state.body,
+            onValueChange = { onEvent(PhotoEvent.setBody(it)) },
+            label = { Text("Body") },
+        )
+        Button(modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+            onClick = {
+                println("WHAAT")
+                println(state.body)
+                println(state.photos)
+                onEvent(PhotoEvent.SavePhoto)
+                navController.popBackStack()}) {
+            Text("Save Photo")
+        }
+
     }
 }
 
-data class Message(val author: String, val body: String)
+//data class Message(val photo: String, val author: String, val body: String)
 
 @Composable
-fun MessageCard(msg: Message) {
+fun MessageCard(msg: Photo) {
     Row(modifier = Modifier.padding(all = 8.dp)) {
-        Image(
-            painter = painterResource(R.drawable.profile_picture),
+
+        AsyncImage(
+            model = Uri.parse(msg.photoUri),
             contentDescription = null,
             modifier = Modifier
                 .size(40.dp)
@@ -145,14 +249,14 @@ fun PreviewMessageCard() {
     HomeworkTheme {
         Surface {
             MessageCard(
-                msg = Message("Lexi", "Hey, take a look at Jetpack Compose, it's great!")
+                msg = Photo(1, "", "Lexi", "Hey, take a look at Jetpack Compose, it's great!")
             )
         }
     }
 }
 @Composable
-fun Conversation(messages: List<Message>, navController: NavHostController) {
-
+fun Conversation(state: PhotoState, navController: NavHostController) {
+//    messages: List<Photo>
     Column(modifier = Modifier
         .fillMaxHeight()
         .padding(16.dp)
@@ -167,7 +271,7 @@ fun Conversation(messages: List<Message>, navController: NavHostController) {
         }
 
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(messages) { message ->
+            items(state.photos) { message ->
                 MessageCard(message)
             }
         }
