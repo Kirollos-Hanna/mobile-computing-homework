@@ -1,5 +1,6 @@
 package com.example.homework
 
+import android.Manifest
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
@@ -51,23 +52,54 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.appcompat.app.AppCompatActivity
 import android.app.Activity
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.hardware.TriggerEvent
+import android.hardware.TriggerEventListener
 import android.net.Uri
+import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.viewModels
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.room.Room
 import coil.compose.AsyncImage
+import kotlin.math.abs
 
+val CHANNEL_ID = "Notification-channel"
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), SensorEventListener {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            1 -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(this, "Permission granted", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Permission denied", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     private val db by lazy {
         Room.databaseBuilder(
@@ -90,8 +122,51 @@ class MainActivity : ComponentActivity() {
         }
     )
 
+    override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
+        println(accuracy)
+    }
+    private var lastRotation: List<Float>? = null
+
+    override fun onSensorChanged(event: SensorEvent) {
+        if (event.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
+            val rotationMatrix = FloatArray(9)
+            SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+            val orientationAngles = FloatArray(3)
+            SensorManager.getOrientation(rotationMatrix, orientationAngles)
+
+            // Convert radians to degrees
+            val degrees = orientationAngles.map { Math.toDegrees(it.toDouble()).toFloat() }
+
+            if (lastRotation != null) {
+                val deltaRotation = degrees.zip(lastRotation!!).map { abs(it.first - it.second) }
+                if (deltaRotation.any { it > 20 }) {
+                    showNotification("New Message", "Device rotated", this, 2)
+                }
+            }
+
+            lastRotation = degrees
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        rotationSensor?.also { rotation ->
+            sensorManager.registerListener(this, rotation, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        sensorManager.unregisterListener(this)
+    }
+
+    private lateinit var sensorManager: SensorManager
+    private var rotationSensor: Sensor? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
         setContent {
             HomeworkTheme {
                 val state by viewModel.state.collectAsState()
@@ -103,16 +178,59 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+fun showNotification(title: String, text: String, context: Context, notificationId: Int) {
+    // Create the NotificationChannel, but only on API 26+ because
+    // the NotificationChannel class is new and not in the support library
+    val name = "Notification Channel"
+    val descriptionText = "Channel Description"
+    val importance = NotificationManager.IMPORTANCE_DEFAULT
+    val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+        description = descriptionText
+    }
+    // Register the channel with the system
+    val notificationManager: NotificationManager =
+        context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    notificationManager.createNotificationChannel(channel)
+    val intent = Intent(context, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+    }
+    val pendingIntent: PendingIntent = PendingIntent.getActivity(
+        context,
+        0,
+        intent,
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+
+    val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+        .setSmallIcon(R.drawable.notification)
+        .setContentTitle(title)
+        .setContentText(text)
+        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        .setContentIntent(pendingIntent)
+        .setAutoCancel(true)
+        .setOnlyAlertOnce(true)
+
+    with(NotificationManagerCompat.from(context)) {
+        if (ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                context as Activity,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                1)
+        }
+        notify(notificationId, builder.build())
+    }
+}
+
+
 @Composable
 fun AppNavigation(state: PhotoState, onEvent: (PhotoEvent) -> Unit) {
     val navController = rememberNavController()
     val allSamples: MutableList<Photo> = mutableListOf<Photo>()
     allSamples += SampleData.conversationSample
-    val allStoredPhotos = state.photos
-    println("TEST")
-    println(allStoredPhotos)
-
-//    data.add(PhotoState.pho)
     NavHost(
         navController = navController,
         startDestination = "firstPage") {
@@ -123,6 +241,7 @@ fun AppNavigation(state: PhotoState, onEvent: (PhotoEvent) -> Unit) {
 
 @Composable
 fun SecondPage(navController: NavHostController, state: PhotoState, onEvent: (PhotoEvent) -> Unit) {
+    val context = LocalContext.current
     var selectedImageUri by remember {
         mutableStateOf<Uri?>(null)
     }
@@ -180,9 +299,7 @@ fun SecondPage(navController: NavHostController, state: PhotoState, onEvent: (Ph
             .fillMaxWidth()
             .padding(bottom = 8.dp),
             onClick = {
-                println("WHAAT")
-                println(state.body)
-                println(state.photos)
+                showNotification("New Message", "A new message has appeared.", context, 1)
                 onEvent(PhotoEvent.SavePhoto)
                 navController.popBackStack()}) {
             Text("Save Photo")
