@@ -10,7 +10,8 @@ object SampleData {
             2,
             "",
             "Lexi",
-            "Test...Test...Test..."
+            "Test...Test...Test...",
+            ""
         ),
         Photo(
             3,
@@ -25,20 +26,23 @@ object SampleData {
             |Android Pie (API 28)
             |Android 10 (API 29)
             |Android 11 (API 30)
-            |Android 12 (API 31)""".trim()
+            |Android 12 (API 31)""".trim(),
+            ""
         ),
         Photo(
             4,
             "",
             "Lexi",
             """I think Kotlin is my favorite programming language.
-            |It's so much fun!""".trim()
+            |It's so much fun!""".trim(),
+            ""
         ),
         Photo(
             5,
             "",
             "Lexi",
-            "Searching for alternatives to XML layouts..."
+            "Searching for alternatives to XML layouts...",
+            ""
         ),
         Photo(
             6,
@@ -47,19 +51,22 @@ object SampleData {
             """Hey, take a look at Jetpack Compose, it's great!
             |It's the Android's modern toolkit for building native UI.
             |It simplifies and accelerates UI development on Android.
-            |Less code, powerful tools, and intuitive Kotlin APIs :)""".trim()
+            |Less code, powerful tools, and intuitive Kotlin APIs :)""".trim(),
+            ""
         ),
         Photo(
             7,
             "",
             "Lexi",
-            "It's available from API 21+ :)"
+            "It's available from API 21+ :)",
+            ""
         ),
         Photo(
             8,
             "",
             "Lexi",
-            "Writing Kotlin for UI seems so natural, Compose where have you been all my life?"
+            "Writing Kotlin for UI seems so natural, Compose where have you been all my life?",
+            ""
         ),
 //        Photo(
 //            "",

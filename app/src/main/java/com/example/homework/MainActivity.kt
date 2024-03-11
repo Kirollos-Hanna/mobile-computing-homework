@@ -1,17 +1,15 @@
 package com.example.homework
 
 import android.Manifest
+import com.google.accompanist.permissions.rememberPermissionState
 import android.content.res.Configuration
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -32,25 +30,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavBackStackEntry
-import androidx.navigation.NavController
-import androidx.navigation.NavHost
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.example.homework.ui.theme.HomeworkTheme
-import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.ui.tooling.preview.PreviewParameter
-import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.appcompat.app.AppCompatActivity
 import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -62,19 +52,14 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.hardware.TriggerEvent
-import android.hardware.TriggerEventListener
 import android.net.Uri
-import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.viewModels
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -84,8 +69,19 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.room.Room
 import coil.compose.AsyncImage
 import kotlin.math.abs
+import android.media.MediaPlayer
+import android.media.MediaRecorder
+import android.os.Environment
+import androidx.compose.runtime.MutableState
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.shouldShowRationale
+import java.io.File
+import java.io.IOException
 
 val CHANNEL_ID = "Notification-channel"
+private const val LOG_TAG = "AudioRecordTest"
+private const val REQUEST_RECORD_AUDIO_PERMISSION = 200
 
 class MainActivity : ComponentActivity(), SensorEventListener {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -106,7 +102,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             applicationContext,
             AppDatabase::class.java,
             "photos1.db"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     private val viewModel by viewModels<PhotoViewModel>(
@@ -178,6 +174,115 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     }
 }
 
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+fun AudioRecordTestApp(onEvent: (PhotoEvent) -> Unit) {
+    // Context
+    val context = LocalContext.current
+
+    val recordAudioPermissionState = rememberPermissionState(
+        android.Manifest.permission.RECORD_AUDIO
+    )
+    if (recordAudioPermissionState.status.isGranted) {
+        Text("Mic permission Granted")
+    } else {
+        Column {
+            val textToShow = if (recordAudioPermissionState.status.shouldShowRationale) {
+                // If the user has denied the permission but the rationale can be shown,
+                // then gently explain why the app requires this permission
+                "The mic is important for this app. Please grant the permission."
+            } else {
+                // If it's the first time the user lands on this feature, or the user
+                // doesn't want to be asked again for this permission, explain that the
+                // permission is required
+                "Mic permission required for this feature to be available. " +
+                        "Please grant the permission"
+            }
+            Text(textToShow)
+            Button(onClick = { recordAudioPermissionState.launchPermissionRequest() }) {
+                Text("Request permission")
+            }
+        }
+    }
+    // Recording state
+    var isRecording by remember { mutableStateOf(false) }
+    var isPlaying by remember { mutableStateOf(false) }
+    val fileName = remember { File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "audiorecordtest-${System.currentTimeMillis()}.3gp").absolutePath }
+    println("FILENAME: $fileName")
+    // MediaRecorder and MediaPlayer instances
+    val recorder = remember { mutableStateOf<MediaRecorder?>(null) }
+    val player = remember { mutableStateOf<MediaPlayer?>(null) }
+
+    Column {
+        Button(onClick = {
+            if (isRecording) {
+                stopRecording(recorder)
+                onEvent(PhotoEvent.setAudioUrl(fileName))
+            } else {
+                startRecording(context, recorder, fileName)
+            }
+            isRecording = !isRecording
+        }) {
+            Text(if (isRecording) "Stop recording" else "Start recording")
+        }
+
+        Button(onClick = {
+            if (isPlaying) {
+                stopPlaying(player)
+            } else {
+                startPlaying(player, fileName)
+            }
+            isPlaying = !isPlaying
+        }) {
+            Text(if (isPlaying) "Stop playing" else "Start playing")
+        }
+    }
+}
+
+fun startRecording(context: Context, recorderState: MutableState<MediaRecorder?>, fileName: String) {
+
+    recorderState.value = MediaRecorder(context).apply {
+        setAudioSource(MediaRecorder.AudioSource.MIC)
+        setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
+        setOutputFile(fileName)
+        setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+        try {
+            prepare()
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
+        start()
+    }
+}
+
+fun stopRecording(recorderState: MutableState<MediaRecorder?>) {
+    recorderState.value?.apply {
+        stop()
+        release()
+    }
+    recorderState.value = null
+}
+
+fun startPlaying(playerState: MutableState<MediaPlayer?>, fileName: String) {
+    playerState.value = MediaPlayer().apply {
+        try {
+            setDataSource(fileName)
+            prepare()
+            start()
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
+    }
+}
+
+fun stopPlaying(playerState: MutableState<MediaPlayer?>) {
+    playerState.value?.apply {
+        stop()
+        release()
+    }
+    playerState.value = null
+}
+
 fun showNotification(title: String, text: String, context: Context, notificationId: Int) {
     // Create the NotificationChannel, but only on API 26+ because
     // the NotificationChannel class is new and not in the support library
@@ -239,6 +344,7 @@ fun AppNavigation(state: PhotoState, onEvent: (PhotoEvent) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun SecondPage(navController: NavHostController, state: PhotoState, onEvent: (PhotoEvent) -> Unit) {
     val context = LocalContext.current
@@ -267,6 +373,7 @@ fun SecondPage(navController: NavHostController, state: PhotoState, onEvent: (Ph
             onClick = { navController.popBackStack() }) {
             Text("Go Back")
         }
+        AudioRecordTestApp(onEvent)
         Button(modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 8.dp),
@@ -308,10 +415,10 @@ fun SecondPage(navController: NavHostController, state: PhotoState, onEvent: (Ph
     }
 }
 
-//data class Message(val photo: String, val author: String, val body: String)
-
 @Composable
 fun MessageCard(msg: Photo) {
+    var isPlaying by remember { mutableStateOf(false) }
+    val player = remember { mutableStateOf<MediaPlayer?>(null) }
     Row(modifier = Modifier.padding(all = 8.dp)) {
 
         AsyncImage(
@@ -351,6 +458,17 @@ fun MessageCard(msg: Photo) {
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
+            Button(onClick = {
+                if (isPlaying) {
+                    stopPlaying(player)
+                } else {
+                    println("MSG URL: ${msg.audioUrl}")
+                    startPlaying(player, msg.audioUrl)
+                }
+                isPlaying = !isPlaying
+            }) {
+                Text(if (isPlaying) "Stop playing" else "Start playing")
+            }
         }
     }
 }
@@ -366,7 +484,7 @@ fun PreviewMessageCard() {
     HomeworkTheme {
         Surface {
             MessageCard(
-                msg = Photo(1, "", "Lexi", "Hey, take a look at Jetpack Compose, it's great!")
+                msg = Photo(1, "", "Lexi", "Hey, take a look at Jetpack Compose, it's great!", "")
             )
         }
     }

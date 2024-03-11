@@ -31,33 +31,23 @@ data class Photo(
     @PrimaryKey(autoGenerate = true) val uid: Int = 0,
     @ColumnInfo(name = "photo_uri") val photoUri: String,
     @ColumnInfo(name = "author") val author: String,
-    @ColumnInfo(name = "body") val body: String
+    @ColumnInfo(name = "body") val body: String,
+    @ColumnInfo(name = "audioUrl") val audioUrl: String
 )
 
 data class PhotoState(
     var photos: List<Photo> = emptyList(),
     val photoUri: String = "",
     val author: String = "",
-    val body: String = ""
+    val body: String = "",
+    val audioUrl: String = ""
 )
 
 class PhotoViewModel(
     private val dao: PhotoDao
 ): ViewModel() {
     private val _state = MutableStateFlow(PhotoState())
-//    val state: StateFlow<PhotoState> = _state.asStateFlow()
-//    init {
-//        _state.value.photos =  dao.getAll()
-//        fetchPhotos()
-//    }
     private val daoPhotosFlow: Flow<List<Photo>> = dao.getAll()
-//    private fun fetchPhotos() {
-//        viewModelScope.launch {
-//            dao.getAll() { photos ->
-//                _state.value = _state.value.copy(photos = photos)
-//            }
-//        }
-//    }
 
     val state = combine(_state, daoPhotosFlow) { state, photos ->
         state.copy(
@@ -87,16 +77,25 @@ class PhotoViewModel(
                     )}
                 }
             }
+            is PhotoEvent.setAudioUrl -> {
+                viewModelScope.launch {
+                    _state.update { it.copy(
+                        audioUrl = event.audioUrl
+                    )}
+                }
+            }
             is PhotoEvent.SavePhoto -> {
                 val photoUri = state.value.photoUri
                 val author = state.value.author
                 val body = state.value.body
-                println(photoUri + author + body)
+                val audioUrl = state.value.audioUrl
+                println(photoUri + author + body + audioUrl)
 
                 val photo = Photo(
                     photoUri = photoUri,
                     body = body,
-                    author = author
+                    author = author,
+                    audioUrl = audioUrl
                 )
                 viewModelScope.launch {
                     dao.upsertPhoto(photo)
@@ -104,7 +103,8 @@ class PhotoViewModel(
                 _state.update { it.copy(
                     photoUri = "",
                     body = "",
-                    author = ""
+                    author = "",
+                    audioUrl = ""
                 ) }
             }
         }
@@ -128,11 +128,12 @@ sealed interface PhotoEvent {
     data class setPhoto(val photo: String): PhotoEvent
     data class setAuthor(val author: String): PhotoEvent
     data class setBody(val body: String): PhotoEvent
+    data class setAudioUrl(val audioUrl: String): PhotoEvent
 }
 
 @Database(
     entities = [Photo::class],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -149,7 +150,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "app_database"
-                ).build()
+                ).fallbackToDestructiveMigration().build()
                 INSTANCE = instance
                 // return instance
                 instance
